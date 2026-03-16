@@ -1,207 +1,125 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import sqlite3
 from datetime import datetime
-
-
-
-conn = sqlite3.connect("helpdesk.db")
-cursor = conn.cursor()
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS employees(
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-name TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS categories(
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-name TEXT
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS tickets(
-ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
-employee_id INTEGER,
-category_id INTEGER,
-priority TEXT,
-status TEXT,
-date_created TEXT
-)
-""")
-
-conn.commit()
-
-
-
-root = tk.Tk()
-root.title("Helpdesk Ticket System")
-root.geometry("900x500")
-
-# Frame container
-container = tk.Frame(root)
-container.pack(fill="both", expand=True)
-
-
-
-def dashboard():
-
-    for widget in container.winfo_children():
-        widget.destroy()
-
-    frame = tk.Frame(container)
-    frame.pack(pady=40)
-
-    tk.Label(frame, text="Dashboard", font=("Arial", 20)).pack(pady=20)
-
-    tk.Button(frame, text="Create Ticket", width=20, command=create_ticket).pack(pady=10)
-    tk.Button(frame, text="View Tickets", width=20, command=view_tickets).pack(pady=10)
-    tk.Button(frame, text="Manage Employees", width=20, command=manage_employees).pack(pady=10)
-    tk.Button(frame, text="Manage Categories", width=20, command=manage_categories).pack(pady=10)
-
-
-
-def create_ticket():
-
-    for widget in container.winfo_children():
-        widget.destroy()
-
-    frame = tk.Frame(container)
-    frame.pack(pady=20)
-
-    tk.Label(frame, text="Create Ticket", font=("Arial", 18)).grid(row=0, columnspan=2, pady=10)
-
-    tk.Label(frame, text="Employee ID").grid(row=1, column=0)
-    emp = tk.Entry(frame)
-    emp.grid(row=1, column=1)
-
-    tk.Label(frame, text="Category ID").grid(row=2, column=0)
-    cat = tk.Entry(frame)
-    cat.grid(row=2, column=1)
-
-    tk.Label(frame, text="Priority").grid(row=3, column=0)
-    priority = ttk.Combobox(frame, values=["Low", "Medium", "High"])
-    priority.grid(row=3, column=1)
-
-    tk.Label(frame, text="Status").grid(row=4, column=0)
-    status = ttk.Combobox(frame, values=["Open", "In Progress", "Closed"])
-    status.grid(row=4, column=1)
-
-    def save_ticket():
-        cursor.execute("""
-        INSERT INTO tickets(employee_id,category_id,priority,status,date_created)
-        VALUES(?,?,?,?,?)
-        """, (
-            emp.get(),
-            cat.get(),
-            priority.get(),
-            status.get(),
-            datetime.now().strftime("%Y-%m-%d")
-        ))
-
-        conn.commit()
-        messagebox.showinfo("Success", "Ticket Created")
-
-    tk.Button(frame, text="Save Ticket", command=save_ticket).grid(row=5, columnspan=2, pady=10)
-    tk.Button(frame, text="Back", command=dashboard).grid(row=6, columnspan=2)
-
-
-
-def view_tickets():
-
-    for widget in container.winfo_children():
-        widget.destroy()
-
-    frame = tk.Frame(container)
-    frame.pack()
-
-    tk.Label(frame, text="All Tickets", font=("Arial", 18)).pack(pady=10)
-
-    columns = ("Ticket", "Employee", "Category", "Priority", "Status", "Date")
-
-    tree = ttk.Treeview(frame, columns=columns, show="headings")
-
-    for col in columns:
-        tree.heading(col, text=col)
-
-    tree.pack()
-
-    cursor.execute("SELECT * FROM tickets")
-    rows = cursor.fetchall()
-
-    for r in rows:
-        tree.insert("", tk.END, values=r)
-
-    def delete_ticket():
-        selected = tree.selection()
-        if not selected:
-            return
-
-        item = tree.item(selected[0])
-        ticket_id = item["values"][0]
-
-        cursor.execute("DELETE FROM tickets WHERE ticket_id=?", (ticket_id,))
-        conn.commit()
-
-        tree.delete(selected)
-
-    btn_frame = tk.Frame(frame)
-    btn_frame.pack(pady=10)
-
-    tk.Button(btn_frame, text="Delete Ticket", command=delete_ticket).pack(side="left", padx=10)
-    tk.Button(btn_frame, text="Back", command=dashboard).pack(side="left", padx=10)
-
-
-
-def manage_employees():
-
-    for widget in container.winfo_children():
-        widget.destroy()
-
-    frame = tk.Frame(container)
-    frame.pack(pady=20)
-
-    tk.Label(frame, text="Manage Employees", font=("Arial", 18)).pack()
-
-    name_entry = tk.Entry(frame)
-    name_entry.pack(pady=10)
-
-    def add_emp():
-        cursor.execute("INSERT INTO employees(name) VALUES(?)", (name_entry.get(),))
-        conn.commit()
-        messagebox.showinfo("Success", "Employee Added")
-
-    tk.Button(frame, text="Add Employee", command=add_emp).pack(pady=5)
-    tk.Button(frame, text="Back", command=dashboard).pack()
-
-
-
-def manage_categories():
-
-    for widget in container.winfo_children():
-        widget.destroy()
-
-    frame = tk.Frame(container)
-    frame.pack(pady=20)
-
-    tk.Label(frame, text="Manage Categories", font=("Arial", 18)).pack()
-
-    name_entry = tk.Entry(frame)
-    name_entry.pack(pady=10)
-
-    def add_cat():
-        cursor.execute("INSERT INTO categories(name) VALUES(?)", (name_entry.get(),))
-        conn.commit()
-        messagebox.showinfo("Success", "Category Added")
-
-    tk.Button(frame, text="Add Category", command=add_cat).pack(pady=5)
-    tk.Button(frame, text="Back", command=dashboard).pack()
-
-
-# Start Dashboard
-dashboard()
-
-root.mainloop()
+from database import init_db, get_db_connection
+
+class HelpdeskApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Helpdesk Ticket Management System")
+        self.root.geometry("800x600")
+        init_db()
+        self.main_frame = tk.Frame(self.root)
+        self.main_frame.pack(fill="both", expand=True)
+        self.dashboard()
+
+    def clear_screen(self):
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+
+    # Module 1 - Dashboard
+    def dashboard(self):
+        self.clear_screen()
+        tk.Label(self.main_frame, text="Dashboard", font=("Arial", 20)).pack(pady=20)
+        tk.Button(self.main_frame, text="Create Ticket", width=25, command=self.create_ticket_form).pack(pady=5)
+        tk.Button(self.main_frame, text="View Tickets", width=25, command=self.view_tickets_module).pack(pady=5)
+        tk.Button(self.main_frame, text="Manage Employees", width=25, command=self.manage_employees).pack(pady=5)
+        tk.Button(self.main_frame, text="Manage Categories", width=25, command=self.manage_categories).pack(pady=5)
+
+    # Module 2 - Create Ticket Form
+    def create_ticket_form(self):
+        self.clear_screen()
+        tk.Label(self.main_frame, text="Create New Ticket", font=("Arial", 15)).pack(pady=10)
+        
+        fields = ["Ticket Number", "Employee ID", "Category ID", "Subject", "Description"]
+        entries = {}
+        for f in fields:
+            tk.Label(self.main_frame, text=f).pack()
+            e = tk.Entry(self.main_frame, width=40)
+            e.pack()
+            entries[f] = e
+
+        tk.Label(self.main_frame, text="Priority").pack()
+        pri = ttk.Combobox(self.main_frame, values=["Low", "Medium", "High", "Critical"])
+        pri.pack()
+
+        def save():
+            conn = get_db_connection(); cursor = conn.cursor()
+            cursor.execute("""INSERT INTO tickets (ticket_no, employee_id, category_id, priority, subject, description, status, created_at, created_by) 
+                           VALUES (%s, %s, %s, %s, %s, %s, 'Open', %s, 'Admin')""",
+                           (entries["Ticket Number"].get(), entries["Employee ID"].get(), entries["Category ID"].get(), pri.get(), entries["Subject"].get(), entries["Description"].get(), datetime.now()))
+            conn.commit(); conn.close()
+            messagebox.showinfo("Success", "Ticket Created"); self.dashboard()
+
+        tk.Button(self.main_frame, text="Save Ticket", command=save).pack(pady=10)
+        tk.Button(self.main_frame, text="Back", command=self.dashboard).pack()
+
+    # Module 3 - View Tickets
+    def view_tickets_module(self):
+        self.clear_screen()
+        cols = ("Ticket Number", "Employee ID", "Category ID", "Priority", "Status", "Date Created")
+        tree = ttk.Treeview(self.main_frame, columns=cols, show="headings")
+        for c in cols: tree.heading(c, text=c)
+        tree.pack(fill="both", expand=True)
+
+        conn = get_db_connection(); cursor = conn.cursor()
+        cursor.execute("SELECT ticket_no, employee_id, category_id, priority, status, created_at FROM tickets WHERE deleted_at IS NULL")
+        for r in cursor.fetchall(): tree.insert("", "end", values=r)
+        conn.close()
+
+        tk.Button(self.main_frame, text="Back", command=self.dashboard).pack(pady=10)
+
+    # Module 4 - Manage Employees
+    def manage_employees(self):
+        self.clear_screen()
+        tk.Label(self.main_frame, text="Manage Employees").pack()
+        
+        f_emp = tk.Frame(self.main_frame); f_emp.pack(pady=10)
+        tk.Label(f_emp, text="Emp No").grid(row=0, column=0)
+        en = tk.Entry(f_emp); en.grid(row=0, column=1)
+        tk.Label(f_emp, text="First").grid(row=0, column=2)
+        ef = tk.Entry(f_emp); ef.grid(row=0, column=3)
+        tk.Label(f_emp, text="Last").grid(row=0, column=4)
+        el = tk.Entry(f_emp); el.grid(row=0, column=5)
+        tk.Label(f_emp, text="Dept ID").grid(row=0, column=6)
+        ed = tk.Entry(f_emp); ed.grid(row=0, column=7)
+
+        def add():
+            conn = get_db_connection(); cursor = conn.cursor()
+            cursor.execute("INSERT INTO employees (employee_no, first_name, last_name, department_id, created_at) VALUES (%s, %s, %s, %s, %s)",
+                           (en.get(), ef.get(), el.get(), ed.get(), datetime.now()))
+            conn.commit(); conn.close(); self.manage_employees()
+
+        tk.Button(self.main_frame, text="Add Employee", command=add).pack()
+        tk.Button(self.main_frame, text="Back", command=self.dashboard).pack(pady=10)
+
+    # Module 5 - Manage Categories
+    def manage_categories(self):
+        self.clear_screen()
+        tk.Label(self.main_frame, text="Manage Categories").pack()
+        
+        e_cat = tk.Entry(self.main_frame)
+        e_cat.pack()
+
+        def add():
+            conn = get_db_connection(); cursor = conn.cursor()
+            cursor.execute("INSERT INTO categories (name, created_at) VALUES (%s, %s)", (e_cat.get(), datetime.now()))
+            conn.commit(); conn.close(); self.manage_categories()
+
+        tk.Button(self.main_frame, text="Add Category", command=add).pack()
+        
+        tree = ttk.Treeview(self.main_frame, columns=("Name"), show="headings")
+        tree.heading("Name", text="Category Name")
+        tree.pack()
+        
+        conn = get_db_connection(); cursor = conn.cursor()
+        cursor.execute("SELECT name FROM categories WHERE deleted_at IS NULL")
+        for r in cursor.fetchall(): tree.insert("", "end", values=r)
+        conn.close()
+
+        tk.Button(self.main_frame, text="Back", command=self.dashboard).pack(pady=10)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = HelpdeskApp(root)
+    root.mainloop()
